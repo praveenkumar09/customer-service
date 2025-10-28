@@ -1,6 +1,6 @@
-DROP TABLE IF EXISTS customer;
-DROP TABLE IF EXISTS portfolio_item;
 DROP TABLE IF EXISTS customer_order;
+DROP TABLE IF EXISTS portfolio_item;
+DROP TABLE IF EXISTS customer;
 DROP TABLE IF EXISTS product;
 
 CREATE TABLE customer (
