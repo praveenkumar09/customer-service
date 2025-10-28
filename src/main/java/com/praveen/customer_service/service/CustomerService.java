@@ -51,94 +51,90 @@ public class CustomerService {
                 ));
     }
 
-
-    public Mono<StockTradeResponse> trade(Integer customerId, Mono<StockTradeRequest> stockTradeRequestMono) {
-        return Mono.zip(
-                        customerRepository.findById(customerId)
-                                .switchIfEmpty(ApplicationExceptionHandler.customerNotFound(customerId)),
-                        stockTradeRequestMono
-                )
-                .flatMap(tuple -> {
-                    Customer customer = tuple.getT1();
-                    StockTradeRequest request = tuple.getT2();
-                    return processTrade(customer, request);
-                });
+    public Mono<StockTradeResponse> trade(
+            Integer customerId,
+            Mono<StockTradeRequest> stockTradeRequest
+    ) {
+        return Mono.zip(this.customerRepository.findById(customerId)
+                                .switchIfEmpty(ApplicationExceptionHandler.customerNotFound(customerId))
+                        , stockTradeRequest)
+                .flatMap(zip -> decideBuyOrSell(zip.getT1(),zip.getT2()));
     }
 
-    private Mono<StockTradeResponse> processTrade(Customer customer, StockTradeRequest request) {
-        return switch (request.action()) {
-            case BUY -> processBuyTrade(customer, request);
-            case SELL -> processSellTrade(customer, request);
+    private Mono<StockTradeResponse> decideBuyOrSell(Customer customer, StockTradeRequest req) {
+        return switch(req.action()){
+            case BUY -> deductAmount(customer,req);
+            case SELL -> addAmount(customer,req);
         };
     }
 
-    private Mono<StockTradeResponse> processBuyTrade(Customer customer, StockTradeRequest request) {
-        Integer totalCost = request.quantity() * request.price();
-
-        if (customer.getBalance() < totalCost) {
-            return ApplicationExceptionHandler.insufficientBalance(customer.getId());
-        }
-
-        customer.setBalance(customer.getBalance() - totalCost);
-
-        return customerRepository.save(customer)
-                .flatMap(savedCustomer -> updatePortfolioForBuy(savedCustomer, request))
-                .map(savedCustomer -> buildTradeResponse(savedCustomer, request, totalCost));
-    }
-
-    private Mono<StockTradeResponse> processSellTrade(Customer customer, StockTradeRequest request) {
-        return verifyPortfolioHoldings(customer.getId(), request)
-                .flatMap(portfolioItem -> {
-                    Integer totalRevenue = request.quantity() * request.price();
-                    customer.setBalance(customer.getBalance() + totalRevenue);
-
-                    return customerRepository.save(customer)
-                            .flatMap(savedCustomer -> updatePortfolioForSell(savedCustomer, request, portfolioItem))
-                            .map(savedCustomer -> buildTradeResponse(savedCustomer, request, totalRevenue));
+    private Mono<StockTradeResponse> deductAmount(Customer customer, StockTradeRequest req) {
+        return Mono.just(customer.getBalance())
+                .map(bal -> {
+                    int currentPrice = req.price() * req.quantity();
+                    if(customer.getBalance() >=  currentPrice){
+                        return bal - (req.price() * req.quantity());
+                    }else{
+                        return 0;
+                    }
+                })
+                .flatMap(bal -> {
+                    if (bal > 0) {
+                        customer.setBalance(bal);
+                        return this.customerRepository.save(customer)
+                                .flatMap(latestCustomer -> addQty(customer,req));
+                    }
+                        return ApplicationExceptionHandler.insufficientBalance(customer.getId());
                 });
     }
 
-    private Mono<Customer> updatePortfolioForBuy(Customer customer, StockTradeRequest request) {
-        return portfolioItemRepository.findByCustomerId(customer.getId())
-                .filter(item -> item.getTicker().equals(request.ticker()))
-                .next()
-                .flatMap(existingItem -> {
-                    existingItem.setQuantity(existingItem.getQuantity() + request.quantity());
-                    return portfolioItemRepository.save(existingItem);
+
+    private Mono<StockTradeResponse> addAmount(Customer customer, StockTradeRequest req) {
+        return Mono.just(customer.getBalance())
+                .map( bal -> bal + (req.price() * req.quantity()))
+                .flatMap(finalBal -> {
+                    customer.setBalance(finalBal);
+                    return this.customerRepository.save(customer);
                 })
-                .switchIfEmpty(Mono.defer(() -> {
-                    PortfolioItem newItem = new PortfolioItem(
-                            customer.getId(),
-                            request.ticker(),
-                            request.quantity()
-                    );
-                    return portfolioItemRepository.save(newItem);
-                }))
-                .thenReturn(customer);
+                .flatMap(latestCustomer -> deductQty(latestCustomer,req));
+
     }
 
-    private Mono<Customer> updatePortfolioForSell(Customer customer, StockTradeRequest request, PortfolioItem portfolioItem) {
-        int newQuantity = portfolioItem.getQuantity() - request.quantity();
-
-        if (newQuantity == 0) {
-            return portfolioItemRepository.delete(portfolioItem)
-                    .thenReturn(customer);
-        }
-
-        portfolioItem.setQuantity(newQuantity);
-        return portfolioItemRepository.save(portfolioItem)
-                .thenReturn(customer);
+    private Mono<StockTradeResponse> addQty(Customer customer, StockTradeRequest req) {
+        return this.portfolioItemRepository
+                .findByTickerAndCustomerId(req.ticker(),customer.getId())
+                .flatMap(item -> {
+                    item.setQuantity(item.getQuantity() + req.quantity());
+                    return this.portfolioItemRepository.save(item);
+                })
+                .switchIfEmpty(Mono.defer(() -> this.portfolioItemRepository.save(
+                        new PortfolioItem(
+                                customer.getId(),
+                                req.ticker(),
+                                req.quantity()
+                        )
+                )))
+                .thenReturn(buildTradeResponse(customer,req,req.price() * req.quantity()));
     }
 
-
-    private Mono<PortfolioItem> verifyPortfolioHoldings(Integer customerId, StockTradeRequest request) {
-        return portfolioItemRepository.findByCustomerId(customerId)
-                .filter(item -> item.getTicker().equals(request.ticker()))
-                .filter(item -> item.getQuantity() >= request.quantity())
-                .next()
-                .switchIfEmpty(ApplicationExceptionHandler.insufficientShares(customerId));
+    private Mono<StockTradeResponse> deductQty(Customer customer, StockTradeRequest req) {
+        return this
+                .portfolioItemRepository
+                .findByTickerAndCustomerId(req.ticker(),customer.getId())
+                .switchIfEmpty(ApplicationExceptionHandler.insufficientShares(customer.getId()))
+                .flatMap(item -> {
+                    int totalPrice = req.price() * req.quantity();
+                    if(req.quantity() < item.getQuantity()){
+                        item.setQuantity(item.getQuantity() - req.quantity());
+                        return this.portfolioItemRepository.save(item)
+                                .thenReturn(buildTradeResponse(customer,req, totalPrice));
+                    }else if(req.quantity().equals(item.getQuantity())){
+                        return this.portfolioItemRepository.deleteById(item.getId())
+                                .thenReturn(buildTradeResponse(customer,req, totalPrice));
+                    }
+                    return ApplicationExceptionHandler.insufficientShares(customer.getId());
+                });
     }
-
 
     private StockTradeResponse buildTradeResponse(Customer customer, StockTradeRequest request, Integer totalPrice) {
         return new StockTradeResponse(
@@ -151,8 +147,6 @@ public class CustomerService {
                 customer.getBalance()
         );
     }
-
-
 
 
 }
