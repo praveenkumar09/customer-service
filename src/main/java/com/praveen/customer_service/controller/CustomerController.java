@@ -1,12 +1,11 @@
 package com.praveen.customer_service.controller;
 
 import com.praveen.customer_service.dto.CustomerInformation;
+import com.praveen.customer_service.dto.StockTradeRequest;
+import com.praveen.customer_service.dto.StockTradeResponse;
 import com.praveen.customer_service.service.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
@@ -26,6 +25,15 @@ public class CustomerController {
     ) {
         return customerService
                 .getCustomerInformation(customerId);
+    }
+
+    @PostMapping("/{customerId}/trade")
+    public Mono<StockTradeResponse> trade(
+            @PathVariable("customerId") Integer customerId,
+            @RequestBody Mono<StockTradeRequest> stockTradeRequest
+    ) {
+        return customerService
+                .trade(customerId, stockTradeRequest);
     }
 
 }
