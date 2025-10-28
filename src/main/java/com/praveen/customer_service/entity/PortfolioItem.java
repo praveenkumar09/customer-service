@@ -9,12 +9,12 @@ public class PortfolioItem {
 
     @Id
     private Integer id;
-    private Customer customer;
+    private Integer customerId;
     private Tickers ticker;
     Integer quantity;
 
-    public PortfolioItem(Customer customer, Tickers ticker, Integer quantity) {
-        this.customer = customer;
+    public PortfolioItem(Integer customerId, Tickers ticker, Integer quantity) {
+        this.customerId = customerId;
         this.ticker = ticker;
         this.quantity = quantity;
     }
@@ -30,12 +30,12 @@ public class PortfolioItem {
         this.id = id;
     }
 
-    public Customer getCustomer() {
-        return customer;
+    public Integer getCustomerId() {
+        return customerId;
     }
 
-    public void setCustomer(Customer customer) {
-        this.customer = customer;
+    public void setCustomerId(Integer customerId) {
+        this.customerId = customerId;
     }
 
     public Tickers getTicker() {
@@ -58,7 +58,7 @@ public class PortfolioItem {
     public String toString() {
         return "PortfolioItem{" +
                 "id=" + id +
-                ", customer=" + customer +
+                ", customerId=" + customerId +
                 ", ticker=" + ticker +
                 ", quantity=" + quantity +
                 '}';
