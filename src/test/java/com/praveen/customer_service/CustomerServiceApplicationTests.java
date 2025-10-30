@@ -31,6 +31,22 @@ class CustomerServiceApplicationTests {
     }
 
     @Test
+    void test_customerInformation_customerNotFoundError() {
+        this.webTestClient.get()
+                .uri("/customers/100")
+                .exchange()
+                .expectStatus().is4xxClientError()
+                .expectBody()
+                .jsonPath("$.type").isEqualTo("http://example.com/problems/customer-not-found")
+                .jsonPath("$.title").isEqualTo("Customer Not Found")
+                .jsonPath("$.status").isEqualTo(404)
+                .jsonPath("$.detail").isEqualTo("Customer with id 100 not found")
+                .jsonPath("$.instance").isNotEmpty();
+    }
+
+
+
+    @Test
     public void test_trade() {
         this.webTestClient.post()
                 .uri("/customers/1/trade")
@@ -67,6 +83,47 @@ class CustomerServiceApplicationTests {
                 .jsonPath("$.totalPrice").isEqualTo(100)
                 .jsonPath("$.action").isEqualTo("SELL")
                 .jsonPath("$.balance").isEqualTo(10000);
+
+    }
+
+    @Test
+    public void test_trade_InsufficientShares(){
+        this.webTestClient.post()
+                .uri("/customers/1/trade")
+                .bodyValue(new StockTradeRequest(
+                        Tickers.APPLE,
+                        100,
+                        1 ,
+                        TradeAction.SELL))
+                .exchange()
+                .expectStatus().is4xxClientError()
+                .expectBody()
+                .jsonPath("$.type").isEqualTo("http://example.com/problems/insufficient-shares")
+                .jsonPath("$.title").isEqualTo("Insufficient Shares")
+                .jsonPath("$.status").isEqualTo(400)
+                .jsonPath("$.detail").isEqualTo("Insufficient shares for customer with id 1")
+                .jsonPath("$.instance").isNotEmpty();
+
+    }
+
+
+    @Test
+    public void test_trade_InsufficientBalance(){
+        this.webTestClient.post()
+                .uri("/customers/1/trade")
+                .bodyValue(new StockTradeRequest(
+                        Tickers.APPLE,
+                        100000,
+                        1 ,
+                        TradeAction.BUY))
+                .exchange()
+                .expectStatus().is4xxClientError()
+                .expectBody()
+                .jsonPath("$.type").isEqualTo("http://example.com/problems/insufficient-balance")
+                .jsonPath("$.title").isEqualTo("Insufficient Balance")
+                .jsonPath("$.status").isEqualTo(400)
+                .jsonPath("$.detail").isEqualTo("Insufficient balance for customer with id 1")
+                .jsonPath("$.instance").isNotEmpty();
 
     }
 
