@@ -1,6 +1,6 @@
 package com.praveen.customer_service.repository;
 
-import com.praveen.customer_service.constants.Tickers;
+import com.praveen.customer_service.domain.Tickers;
 import com.praveen.customer_service.entity.PortfolioItem;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;

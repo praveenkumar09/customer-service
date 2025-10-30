@@ -1,4 +1,4 @@
-package com.praveen.customer_service.constants;
+package com.praveen.customer_service.domain;
 
 public enum Tickers {
     APPLE,

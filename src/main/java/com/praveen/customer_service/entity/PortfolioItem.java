@@ -1,8 +1,7 @@
 package com.praveen.customer_service.entity;
 
-import com.praveen.customer_service.constants.Tickers;
+import com.praveen.customer_service.domain.Tickers;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Table;
 
 
 public class PortfolioItem {

@@ -7,6 +7,7 @@ import com.praveen.customer_service.dto.StockTradeResponse;
 import com.praveen.customer_service.entity.Customer;
 import com.praveen.customer_service.entity.PortfolioItem;
 import com.praveen.customer_service.exception.ApplicationExceptionHandler;
+import com.praveen.customer_service.mapper.EntityDtoMapper;
 import com.praveen.customer_service.repository.CustomerRepository;
 import com.praveen.customer_service.repository.PortfolioItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,17 +39,10 @@ public class CustomerService {
 
     private Mono<CustomerInformation> buildCustomerInformation(Customer customer) {
         return portfolioItemRepository.findByCustomerId(customer.getId())
-                .map(portfolioItem -> new Holding(
-                        portfolioItem.getTicker(),
-                        portfolioItem.getQuantity()
-                ))
                 .collectList()
-                .map(holdings -> new CustomerInformation(
-                        customer.getId(),
-                        customer.getName(),
-                        customer.getBalance(),
-                        holdings
-                ));
+                .map(holdings -> EntityDtoMapper
+                        .toCustomerInformation(customer,holdings)
+                );
     }
 
     public Mono<StockTradeResponse> trade(
